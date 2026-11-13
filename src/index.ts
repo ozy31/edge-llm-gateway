@@ -2,6 +2,7 @@ import { authenticate, mayUseModel } from "./auth";
 import { loadConfig } from "./config";
 import type { Env } from "./env";
 import { error, json } from "./http";
+import { callUpstream, MissingSecretError } from "./upstream";
 import { readJson, validateChat } from "./validate";
 
 const API_ROUTES = new Set(["/v1/models", "/v1/chat/completions"]);
@@ -45,7 +46,20 @@ export default {
       if (!mayUseModel(tenant, chat.value.model)) {
         return error(403, "permission_error", `this key may not use model ${chat.value.model}`);
       }
-      return error(501, "server_error", "upstream routing not implemented yet");
+      const requestId = request.headers.get("cf-ray") ?? crypto.randomUUID();
+      const target = config.models[chat.value.model]!.targets[0]!;
+      const upstream = config.upstreams[target.upstream]!;
+      let res: Response;
+      try {
+        res = await callUpstream(upstream, target, chat.value, env, requestId);
+      } catch (e) {
+        if (e instanceof MissingSecretError) return error(500, "server_error", "gateway is misconfigured");
+        return error(502, "upstream_error", "upstream unavailable", { "x-request-id": requestId });
+      }
+      const headers = new Headers(res.headers);
+      headers.set("x-request-id", requestId);
+      headers.set("x-gateway-upstream", target.upstream);
+      return new Response(res.body, { status: res.status, headers });
     }
 
     return error(404, "not_found_error", `no route for ${request.method} ${url.pathname}`);

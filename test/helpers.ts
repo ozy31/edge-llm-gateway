@@ -32,3 +32,18 @@ export const hello = (model = "chat-small", extra: Record<string, unknown> = {})
   messages: [{ role: "user", content: "hello" }],
   ...extra,
 });
+
+export interface Seen {
+  host: string;
+  path: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+}
+
+// What the fake upstreams received since the last reset.
+export async function upstreamCalls(): Promise<Seen[]> {
+  return (await fetch("https://control.upstream.test/")).json();
+}
+export async function resetUpstreams(): Promise<void> {
+  await fetch("https://control.upstream.test/reset");
+}
