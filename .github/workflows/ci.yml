@@ -19,6 +19,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run build
+        env:
+          WRANGLER_SEND_METRICS: "false"
 
   terraform:
     runs-on: ubuntu-latest
