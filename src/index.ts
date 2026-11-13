@@ -2,11 +2,14 @@ import { authenticate, mayUseModel } from "./auth";
 import { loadConfig } from "./config";
 import type { Env } from "./env";
 import { error, json } from "./http";
+import { limiterFor, rateHeaders } from "./limiter";
 import { routeChat } from "./router";
 import { MissingSecretError } from "./upstream";
 import { readJson, validateChat } from "./validate";
 
 const API_ROUTES = new Set(["/v1/models", "/v1/chat/completions"]);
+
+export { TenantLimiter } from "./limiter";
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -47,6 +50,10 @@ export default {
       if (!mayUseModel(tenant, chat.value.model)) {
         return error(403, "permission_error", `this key may not use model ${chat.value.model}`);
       }
+      const rate = await limiterFor(env.TENANT_LIMITER, tenant.tenant).take(tenant.requestsPerMinute);
+      if (!rate.allowed) {
+        return error(429, "rate_limit_error", `rate limit of ${rate.limit} requests per minute reached`, rateHeaders(rate));
+      }
       const requestId = request.headers.get("cf-ray") ?? crypto.randomUUID();
       let routed;
       try {
@@ -67,6 +74,7 @@ export default {
       headers.set("x-request-id", requestId);
       headers.set("x-gateway-upstream", routed.target.upstream);
       headers.set("x-gateway-attempts", attempts);
+      for (const [k, v] of Object.entries(rateHeaders(rate))) headers.set(k, v);
       return new Response(routed.response.body, { status: routed.response.status, headers });
     }
 
