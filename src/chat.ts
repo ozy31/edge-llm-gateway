@@ -102,6 +102,7 @@ export async function handleChat(
   headers.set("x-gateway-attempts", event.attempts);
   for (const [k, v] of Object.entries(rateHeaders(rate))) headers.set(k, v);
   headers.set("x-gateway-tokens-remaining-month", String(budget.remaining));
+  if (routed.redactions > 0) headers.set("x-gateway-redactions", String(routed.redactions));
 
   if (streaming && routed.response.ok) {
     const status = routed.response.status;

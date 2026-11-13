@@ -4,7 +4,8 @@ export const TEST_CONFIG = {
   upstreams: {
     // high breaker threshold: many tests make the primary fail on purpose
     primary: { baseUrl: "https://primary.upstream.test/v1", auth: { type: "bearer", secret: "PRIMARY_KEY" }, timeoutMs: 2000, breaker: { threshold: 1000, cooldownMs: 1000 } },
-    backup: { baseUrl: "https://backup.upstream.test/v1", auth: { type: "none" }, timeoutMs: 2000 },
+    // stands in for a third-party provider: prompts are redacted before sending
+    backup: { baseUrl: "https://backup.upstream.test/v1", auth: { type: "none" }, timeoutMs: 2000, redact: true },
     // separate upstream (same fake host) so breaker tests do not affect other tests
     flaky: { baseUrl: "https://primary.upstream.test/v1", auth: { type: "bearer", secret: "PRIMARY_KEY" }, timeoutMs: 2000, breaker: { threshold: 3, cooldownMs: 200 } },
   },

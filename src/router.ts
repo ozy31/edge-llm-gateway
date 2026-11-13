@@ -16,6 +16,7 @@ export interface RouteResult {
   response?: Response; // undefined only when every attempt failed without an HTTP response
   target?: Target;
   attempts: Attempt[];
+  redactions: number; // items redacted in the request that produced `response`
 }
 
 export interface Health {
@@ -33,7 +34,7 @@ export async function routeChat(
   health: Health = ALWAYS_HEALTHY,
 ): Promise<RouteResult> {
   const attempts: Attempt[] = [];
-  let last: RouteResult = { attempts };
+  let last: RouteResult = { attempts, redactions: 0 };
   const targets = config.models[chat.model]!.targets;
   for (const [i, target] of targets.entries()) {
     // Skip an upstream whose breaker is open, unless it is the last option:
@@ -45,8 +46,9 @@ export async function routeChat(
     const upstream = config.upstreams[target.upstream]!;
     const started = Date.now();
     let res: Response;
+    let redactions = 0;
     try {
-      res = await callUpstream(upstream, target, chat, env, requestId);
+      ({ response: res, redactions } = await callUpstream(upstream, target, chat, env, requestId));
     } catch (e) {
       if (e instanceof Error && e.name !== "TimeoutError" && e.name !== "AbortError" && e.name !== "TypeError") throw e;
       attempts.push({ upstream: target.upstream, outcome: e instanceof Error && e.name === "TypeError" ? "network_error" : "timeout", ms: Date.now() - started });
@@ -56,9 +58,9 @@ export async function routeChat(
     attempts.push({ upstream: target.upstream, outcome: res.status, ms: Date.now() - started });
     // 429 means "busy", not "broken": it triggers fallback but not the breaker.
     if (res.status !== 429) health.record(target.upstream, !RETRYABLE.has(res.status));
-    if (!RETRYABLE.has(res.status)) return { response: res, target, attempts };
+    if (!RETRYABLE.has(res.status)) return { response: res, target, attempts, redactions };
     await res.body?.cancel();
-    last = { response: new Response(null, { status: res.status }), target, attempts };
+    last = { response: new Response(null, { status: res.status }), target, attempts, redactions };
   }
   return last;
 }

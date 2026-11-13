@@ -1,4 +1,5 @@
 import type { Target, Upstream } from "./config";
+import { redactMessages } from "./redact";
 import type { ChatRequest } from "./validate";
 
 export class MissingSecretError extends Error {}
@@ -27,8 +28,10 @@ export function upstreamHeaders(upstream: Upstream, env: object, requestId: stri
   return h;
 }
 
-export function upstreamBody(chat: ChatRequest, target: Target): string {
-  return JSON.stringify({ ...chat, model: target.model });
+export function upstreamBody(chat: ChatRequest, target: Target, upstream: Upstream): { body: string; redactions: number } {
+  if (!upstream.redact) return { body: JSON.stringify({ ...chat, model: target.model }), redactions: 0 };
+  const r = redactMessages(chat.messages);
+  return { body: JSON.stringify({ ...chat, model: target.model, messages: r.messages }), redactions: r.count };
 }
 
 export async function callUpstream(
@@ -37,11 +40,13 @@ export async function callUpstream(
   chat: ChatRequest,
   env: object,
   requestId: string,
-): Promise<Response> {
-  return fetch(`${upstream.baseUrl}/chat/completions`, {
+): Promise<{ response: Response; redactions: number }> {
+  const { body, redactions } = upstreamBody(chat, target, upstream);
+  const response = await fetch(`${upstream.baseUrl}/chat/completions`, {
     method: "POST",
     headers: upstreamHeaders(upstream, env, requestId),
-    body: upstreamBody(chat, target),
+    body,
     signal: AbortSignal.timeout(upstream.timeoutMs),
   });
+  return { response, redactions };
 }

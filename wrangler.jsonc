@@ -33,7 +33,8 @@
         "openai": {
           "baseUrl": "https://api.openai.com/v1",
           "auth": { "type": "bearer", "secret": "OPENAI_API_KEY" },
-          "timeoutMs": 30000
+          "timeoutMs": 30000,
+          "redact": true
         }
       },
       "models": {
