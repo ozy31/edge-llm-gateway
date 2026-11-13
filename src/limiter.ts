@@ -11,7 +11,44 @@ export interface TakeResult {
   retryAfterSec: number;
 }
 
+export interface BudgetStatus {
+  month: string;
+  budget: number;
+  used: number;
+  remaining: number;
+}
+
+export function monthKey(now = new Date()): string {
+  return now.toISOString().slice(0, 7); // UTC calendar month, e.g. 2026-11
+}
+
 export class TenantLimiter extends DurableObject {
+  constructor(ctx: DurableObjectState, env: Cloudflare.Env) {
+    super(ctx, env);
+    // Token usage is money, so unlike the request bucket it is persisted.
+    ctx.storage.sql.exec("CREATE TABLE IF NOT EXISTS usage (month TEXT PRIMARY KEY, tokens INTEGER NOT NULL)");
+  }
+
+  private used(month: string): number {
+    const row = this.ctx.storage.sql.exec<{ tokens: number }>("SELECT tokens FROM usage WHERE month = ?", month).toArray()[0];
+    return row?.tokens ?? 0;
+  }
+
+  budget(monthlyBudget: number, month = monthKey()): BudgetStatus {
+    const used = this.used(month);
+    return { month, budget: monthlyBudget, used, remaining: Math.max(0, monthlyBudget - used) };
+  }
+
+  recordUsage(tokens: number, month = monthKey()): number {
+    if (!Number.isFinite(tokens) || tokens <= 0) return this.used(month);
+    this.ctx.storage.sql.exec(
+      "INSERT INTO usage (month, tokens) VALUES (?, ?) ON CONFLICT(month) DO UPDATE SET tokens = tokens + excluded.tokens",
+      month,
+      Math.round(tokens),
+    );
+    return this.used(month);
+  }
+
   // Token bucket for requests per minute. Kept in memory: if the object is
   // evicted the bucket refills, which errs on the side of letting traffic
   // through (see docs/adr/0002-limits-in-durable-objects.md).

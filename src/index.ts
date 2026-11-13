@@ -4,6 +4,7 @@ import type { Env } from "./env";
 import { error, json } from "./http";
 import { limiterFor, rateHeaders } from "./limiter";
 import { routeChat } from "./router";
+import { usageTokens } from "./usage";
 import { MissingSecretError } from "./upstream";
 import { readJson, validateChat } from "./validate";
 
@@ -12,7 +13,7 @@ const API_ROUTES = new Set(["/v1/models", "/v1/chat/completions"]);
 export { TenantLimiter } from "./limiter";
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/healthz") {
       return json({ status: "ok", gateway: env.GATEWAY_NAME });
@@ -50,7 +51,12 @@ export default {
       if (!mayUseModel(tenant, chat.value.model)) {
         return error(403, "permission_error", `this key may not use model ${chat.value.model}`);
       }
-      const rate = await limiterFor(env.TENANT_LIMITER, tenant.tenant).take(tenant.requestsPerMinute);
+      const limiter = limiterFor(env.TENANT_LIMITER, tenant.tenant);
+      const budget = await limiter.budget(tenant.monthlyTokenBudget);
+      if (budget.remaining <= 0) {
+        return error(429, "insufficient_quota", `monthly token budget of ${budget.budget} is used up for ${budget.month}`);
+      }
+      const rate = await limiter.take(tenant.requestsPerMinute);
       if (!rate.allowed) {
         return error(429, "rate_limit_error", `rate limit of ${rate.limit} requests per minute reached`, rateHeaders(rate));
       }
@@ -75,7 +81,14 @@ export default {
       headers.set("x-gateway-upstream", routed.target.upstream);
       headers.set("x-gateway-attempts", attempts);
       for (const [k, v] of Object.entries(rateHeaders(rate))) headers.set(k, v);
-      return new Response(routed.response.body, { status: routed.response.status, headers });
+      headers.set("x-gateway-tokens-remaining-month", String(budget.remaining));
+
+      // Non-streaming: the body is small JSON, read usage from it and record
+      // it after the response is sent.
+      const text = await routed.response.text();
+      const tokens = usageTokens(text);
+      if (tokens > 0) ctx.waitUntil(limiter.recordUsage(tokens));
+      return new Response(text, { status: routed.response.status, headers });
     }
 
     return error(404, "not_found_error", `no route for ${request.method} ${url.pathname}`);
