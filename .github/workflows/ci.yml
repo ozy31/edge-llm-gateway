@@ -19,3 +19,22 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.5
+      - uses: terraform-linters/setup-tflint@v5
+        with:
+          tflint_version: v0.66.0
+      - run: terraform fmt -recursive -check
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+      - run: tflint --init && tflint
+      - run: terraform test

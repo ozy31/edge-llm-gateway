@@ -1,0 +1,4 @@
+account_id            = "<account id>"
+zone_id               = "<zone id>"
+gateway_hostname      = "llm.example.com"
+self_hosted_upstreams = ["llm.internal.example.com"]
