@@ -13,6 +13,7 @@ export const TEST_CONFIG = {
       ],
     },
     "backup-only": { targets: [{ upstream: "backup", model: "backup-small" }] },
+    "primary-only": { targets: [{ upstream: "primary", model: "llama-8b" }] },
   },
   limits: { maxBodyBytes: 20000, maxTokensCap: 1024 },
 };

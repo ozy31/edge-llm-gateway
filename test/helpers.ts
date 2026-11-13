@@ -19,10 +19,17 @@ export async function createKey(overrides: Partial<Tenant> = {}): Promise<string
   return key;
 }
 
+// Each request gets its own cf-ray (the request id the gateway propagates), so
+// a test can find exactly its own upstream calls even with files in parallel.
 export function chat(key: string | undefined, body: unknown, extraHeaders: Record<string, string> = {}): Request {
   return new Request("https://gw.test/v1/chat/completions", {
     method: "POST",
-    headers: { "content-type": "application/json", ...(key ? { authorization: `Bearer ${key}` } : {}), ...extraHeaders },
+    headers: {
+      "content-type": "application/json",
+      "cf-ray": crypto.randomUUID(),
+      ...(key ? { authorization: `Bearer ${key}` } : {}),
+      ...extraHeaders,
+    },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
@@ -40,10 +47,9 @@ export interface Seen {
   body: Record<string, unknown>;
 }
 
-// What the fake upstreams received since the last reset.
-export async function upstreamCalls(): Promise<Seen[]> {
-  return (await fetch("https://control.upstream.test/")).json();
-}
-export async function resetUpstreams(): Promise<void> {
-  await fetch("https://control.upstream.test/reset");
+// What the fake upstreams received for one gateway request.
+export async function upstreamCalls(req: Request): Promise<Seen[]> {
+  const id = req.headers.get("cf-ray");
+  const all = (await (await fetch("https://control.upstream.test/")).json()) as Seen[];
+  return all.filter((c) => c.headers["x-request-id"] === id);
 }

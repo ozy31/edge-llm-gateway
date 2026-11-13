@@ -7,7 +7,7 @@
 //   "slow:<ms>"      -> the PRIMARY upstream waits that long before answering
 //   anything else    -> a normal completion
 // The backup upstream always succeeds. https://control.upstream.test/ lets
-// tests read what each upstream received.
+// tests read what each upstream received (filtered by x-request-id).
 import { Response, type Request } from "miniflare";
 
 interface Seen {
@@ -63,7 +63,6 @@ function sse(model: string, text: string, includeUsage: boolean): Response {
 export async function fakeUpstream(request: Request): Promise<Response> {
   const url = new URL(request.url);
   if (url.hostname === "control.upstream.test") {
-    if (url.pathname === "/reset") seen.length = 0;
     return Response.json(seen);
   }
   if (!url.hostname.endsWith(".upstream.test")) {

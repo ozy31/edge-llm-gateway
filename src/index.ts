@@ -2,7 +2,8 @@ import { authenticate, mayUseModel } from "./auth";
 import { loadConfig } from "./config";
 import type { Env } from "./env";
 import { error, json } from "./http";
-import { callUpstream, MissingSecretError } from "./upstream";
+import { routeChat } from "./router";
+import { MissingSecretError } from "./upstream";
 import { readJson, validateChat } from "./validate";
 
 const API_ROUTES = new Set(["/v1/models", "/v1/chat/completions"]);
@@ -47,19 +48,26 @@ export default {
         return error(403, "permission_error", `this key may not use model ${chat.value.model}`);
       }
       const requestId = request.headers.get("cf-ray") ?? crypto.randomUUID();
-      const target = config.models[chat.value.model]!.targets[0]!;
-      const upstream = config.upstreams[target.upstream]!;
-      let res: Response;
+      let routed;
       try {
-        res = await callUpstream(upstream, target, chat.value, env, requestId);
+        routed = await routeChat(config, chat.value, env, requestId);
       } catch (e) {
         if (e instanceof MissingSecretError) return error(500, "server_error", "gateway is misconfigured");
-        return error(502, "upstream_error", "upstream unavailable", { "x-request-id": requestId });
+        throw e;
       }
-      const headers = new Headers(res.headers);
+      const attempts = routed.attempts.map((a) => `${a.upstream}=${a.outcome}`).join(",");
+      if (!routed.response || !routed.target || routed.response.body === null) {
+        const status = routed.response?.status === 429 ? 429 : 502;
+        return error(status, status === 429 ? "rate_limit_error" : "upstream_error", "all upstreams failed", {
+          "x-request-id": requestId,
+          "x-gateway-attempts": attempts,
+        });
+      }
+      const headers = new Headers(routed.response.headers);
       headers.set("x-request-id", requestId);
-      headers.set("x-gateway-upstream", target.upstream);
-      return new Response(res.body, { status: res.status, headers });
+      headers.set("x-gateway-upstream", routed.target.upstream);
+      headers.set("x-gateway-attempts", attempts);
+      return new Response(routed.response.body, { status: routed.response.status, headers });
     }
 
     return error(404, "not_found_error", `no route for ${request.method} ${url.pathname}`);
