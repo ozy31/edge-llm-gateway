@@ -6,6 +6,31 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "vars": {
-    "GATEWAY_NAME": "edge-llm-gateway"
+    "GATEWAY_NAME": "edge-llm-gateway",
+    // Example routing. Hostnames are placeholders; see docs/configuration.md.
+    "GATEWAY_CONFIG": {
+      "upstreams": {
+        "self-hosted": {
+          "baseUrl": "https://llm.internal.example.com/v1",
+          "auth": { "type": "access_service_token", "idSecret": "ACCESS_CLIENT_ID", "secretSecret": "ACCESS_CLIENT_SECRET" },
+          "timeoutMs": 60000
+        },
+        "openai": {
+          "baseUrl": "https://api.openai.com/v1",
+          "auth": { "type": "bearer", "secret": "OPENAI_API_KEY" },
+          "timeoutMs": 30000
+        }
+      },
+      "models": {
+        "chat-small": {
+          "targets": [
+            { "upstream": "self-hosted", "model": "meta-llama/Llama-3.1-8B-Instruct" },
+            { "upstream": "openai", "model": "gpt-4.1-mini" }
+          ]
+        },
+        "chat-large": { "targets": [{ "upstream": "openai", "model": "gpt-4.1" }] }
+      },
+      "limits": { "maxBodyBytes": 1000000, "maxTokensCap": 4096 }
+    }
   }
 }
