@@ -11,6 +11,7 @@ export interface Upstream {
   baseUrl: string; // OpenAI-compatible base, e.g. https://api.openai.com/v1
   auth: UpstreamAuth;
   timeoutMs: number;
+  breaker: { threshold: number; cooldownMs: number };
 }
 
 export interface Target {
@@ -76,6 +77,10 @@ export function parseConfig(raw: unknown): GatewayConfig {
       baseUrl: u.baseUrl.replace(/\/+$/, ""),
       auth: parseAuth(name, u.auth),
       timeoutMs: typeof u.timeoutMs === "number" ? u.timeoutMs : 30_000,
+      breaker: {
+        threshold: isObject(u.breaker) && typeof u.breaker.threshold === "number" ? u.breaker.threshold : 5,
+        cooldownMs: isObject(u.breaker) && typeof u.breaker.cooldownMs === "number" ? u.breaker.cooldownMs : 30_000,
+      },
     };
   }
 

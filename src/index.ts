@@ -3,7 +3,8 @@ import { loadConfig } from "./config";
 import type { Env } from "./env";
 import { error, json } from "./http";
 import { limiterFor, rateHeaders } from "./limiter";
-import { routeChat } from "./router";
+import { breakerFor } from "./breaker";
+import { routeChat, type Health } from "./router";
 import { meterStream, withUsageRequested } from "./stream";
 import { usageTokens } from "./usage";
 import { MissingSecretError } from "./upstream";
@@ -11,6 +12,7 @@ import { readJson, validateChat } from "./validate";
 
 const API_ROUTES = new Set(["/v1/models", "/v1/chat/completions"]);
 
+export { UpstreamBreaker } from "./breaker";
 export { TenantLimiter } from "./limiter";
 
 export default {
@@ -66,7 +68,11 @@ export default {
       const prepared = streaming ? withUsageRequested(chat.value) : { body: chat.value, clientWantsUsage: false };
       let routed;
       try {
-        routed = await routeChat(config, prepared.body as typeof chat.value, env, requestId);
+        const health: Health = {
+          allow: (name) => breakerFor(env.UPSTREAM_BREAKER, name).allow(config.upstreams[name]!.breaker),
+          record: (name, ok) => ctx.waitUntil(breakerFor(env.UPSTREAM_BREAKER, name).record(ok, config.upstreams[name]!.breaker)),
+        };
+        routed = await routeChat(config, prepared.body as typeof chat.value, env, requestId, health);
       } catch (e) {
         if (e instanceof MissingSecretError) return error(500, "server_error", "gateway is misconfigured");
         throw e;

@@ -1,3 +1,4 @@
+import type { UpstreamBreaker } from "./breaker";
 import type { TenantLimiter } from "./limiter";
 
 export interface Env {
@@ -5,4 +6,5 @@ export interface Env {
   GATEWAY_CONFIG: unknown; // JSON object (wrangler var); see src/config.ts
   TENANT_KEYS: KVNamespace;
   TENANT_LIMITER: DurableObjectNamespace<TenantLimiter>;
+  UPSTREAM_BREAKER: DurableObjectNamespace<UpstreamBreaker>;
 }

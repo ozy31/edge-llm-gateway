@@ -6,9 +6,15 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
   "durable_objects": {
-    "bindings": [{ "name": "TENANT_LIMITER", "class_name": "TenantLimiter" }]
+    "bindings": [
+      { "name": "TENANT_LIMITER", "class_name": "TenantLimiter" },
+      { "name": "UPSTREAM_BREAKER", "class_name": "UpstreamBreaker" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TenantLimiter"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TenantLimiter"] },
+    { "tag": "v2", "new_sqlite_classes": ["UpstreamBreaker"] }
+  ],
   "kv_namespaces": [
     // Client key hashes -> tenant limits. Create with: npx wrangler kv namespace create TENANT_KEYS
     { "binding": "TENANT_KEYS", "id": "00000000000000000000000000000000" }
