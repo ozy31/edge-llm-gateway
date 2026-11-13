@@ -7,4 +7,5 @@ export interface Env {
   TENANT_KEYS: KVNamespace;
   TENANT_LIMITER: DurableObjectNamespace<TenantLimiter>;
   UPSTREAM_BREAKER: DurableObjectNamespace<UpstreamBreaker>;
+  USAGE_EVENTS?: AnalyticsEngineDataset; // optional: the gateway works without it
 }

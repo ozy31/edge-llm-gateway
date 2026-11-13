@@ -15,6 +15,7 @@
     { "tag": "v1", "new_sqlite_classes": ["TenantLimiter"] },
     { "tag": "v2", "new_sqlite_classes": ["UpstreamBreaker"] }
   ],
+  "analytics_engine_datasets": [{ "binding": "USAGE_EVENTS", "dataset": "llm_gateway_requests" }],
   "kv_namespaces": [
     // Client key hashes -> tenant limits. Create with: npx wrangler kv namespace create TENANT_KEYS
     { "binding": "TENANT_KEYS", "id": "00000000000000000000000000000000" }
