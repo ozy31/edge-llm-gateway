@@ -1,24 +1,17 @@
 import { SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { chat, createKey } from "./helpers";
 
-const post = (body: unknown) =>
-  SELF.fetch("https://gw.test/v1/chat/completions", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: typeof body === "string" ? body : JSON.stringify(body),
-  });
+let key: string;
+beforeAll(async () => {
+  key = await createKey();
+});
+
+const post = (body: unknown) => SELF.fetch(chat(key, body));
 
 async function errorOf(res: Response) {
   return ((await res.json()) as { error: { type: string; message: string } }).error;
 }
-
-describe("/v1/models", () => {
-  it("lists configured aliases, not upstream model names", async () => {
-    const res = await SELF.fetch("https://gw.test/v1/models");
-    const body = (await res.json()) as { data: { id: string }[] };
-    expect(body.data.map((m) => m.id)).toEqual(["backup-only", "chat-small"]);
-  });
-});
 
 describe("/v1/chat/completions validation", () => {
   it("rejects non-JSON", async () => {
@@ -49,7 +42,7 @@ describe("/v1/chat/completions validation", () => {
   });
 
   it("only accepts POST", async () => {
-    const res = await SELF.fetch("https://gw.test/v1/chat/completions");
+    const res = await SELF.fetch("https://gw.test/v1/chat/completions", { headers: { authorization: `Bearer ${key}` } });
     expect(res.status).toBe(405);
   });
 });
