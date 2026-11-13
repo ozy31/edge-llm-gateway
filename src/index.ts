@@ -4,6 +4,7 @@ import type { Env } from "./env";
 import { error, json } from "./http";
 import { limiterFor, rateHeaders } from "./limiter";
 import { routeChat } from "./router";
+import { meterStream, withUsageRequested } from "./stream";
 import { usageTokens } from "./usage";
 import { MissingSecretError } from "./upstream";
 import { readJson, validateChat } from "./validate";
@@ -61,9 +62,11 @@ export default {
         return error(429, "rate_limit_error", `rate limit of ${rate.limit} requests per minute reached`, rateHeaders(rate));
       }
       const requestId = request.headers.get("cf-ray") ?? crypto.randomUUID();
+      const streaming = chat.value.stream === true;
+      const prepared = streaming ? withUsageRequested(chat.value) : { body: chat.value, clientWantsUsage: false };
       let routed;
       try {
-        routed = await routeChat(config, chat.value, env, requestId);
+        routed = await routeChat(config, prepared.body as typeof chat.value, env, requestId);
       } catch (e) {
         if (e instanceof MissingSecretError) return error(500, "server_error", "gateway is misconfigured");
         throw e;
@@ -82,6 +85,14 @@ export default {
       headers.set("x-gateway-attempts", attempts);
       for (const [k, v] of Object.entries(rateHeaders(rate))) headers.set(k, v);
       headers.set("x-gateway-tokens-remaining-month", String(budget.remaining));
+
+      if (streaming && routed.response.ok) {
+        const metered = meterStream(routed.response.body, prepared.clientWantsUsage, (tokens) => {
+          if (tokens > 0) ctx.waitUntil(limiter.recordUsage(tokens));
+        });
+        headers.delete("content-length");
+        return new Response(metered, { status: routed.response.status, headers });
+      }
 
       // Non-streaming: the body is small JSON, read usage from it and record
       // it after the response is sent.
