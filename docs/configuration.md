@@ -41,3 +41,6 @@ Tenant records in KV (`key:<sha256 of the key>`):
 ```
 
 Set `"disabled": true` to revoke a key immediately (KV cache: up to 60 s).
+`"expiresAt"` (ISO 8601) makes a key stop working at that instant;
+`scripts/new-key.mjs` sets it 90 days ahead unless `--expires-days 0`. An
+expiry that does not parse counts as expired.
