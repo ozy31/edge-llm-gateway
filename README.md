@@ -27,6 +27,20 @@ flowchart LR
   W --> AE[(Analytics Engine<br/>one data point per request)]
 ```
 
+## Endpoints
+
+| Route | What it does |
+|---|---|
+| `POST /v1/chat/completions` | OpenAI chat completions, streaming or not, through the request path below |
+| `GET /v1/models` | the model aliases this key may call |
+| `GET /v1/usage` | this key's tenant: tokens used and remaining this month, rate limit, key expiry |
+| `GET /healthz` | `200` when the configuration loads, `503` with the reason when it does not |
+
+Keys expire (`expiresAt`, 90 days by default from `scripts/new-key.mjs`) and
+can carry their own `max_tokens` ceiling below the gateway-wide cap. An
+exhausted budget answers `429 insufficient_quota` with `Retry-After` set to
+the start of the next UTC month. Every answer is `Cache-Control: no-store`.
+
 Request path for `POST /v1/chat/completions`:
 
 1. **Authenticate**: the bearer key is hashed and looked up in KV. Keys are
@@ -106,7 +120,7 @@ answer slowly, and stream SSE with or without a usage chunk.
 
 Verified in CI, without a Cloudflare account:
 
-- 60+ tests in workerd: auth, validation, model allow-lists, rate limits and
+- 75 tests in workerd: auth, validation, model allow-lists, rate limits and
   budgets in real Durable Objects with SQLite storage, fallback on each
   retryable status and on timeout, the circuit breaker opening, skipping and
   probing, SSE passthrough and usage metering (including events split across

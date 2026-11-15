@@ -41,6 +41,12 @@ Tenant records in KV (`key:<sha256 of the key>`):
 ```
 
 Set `"disabled": true` to revoke a key immediately (KV cache: up to 60 s).
+`"maxTokens"` sets a per-request ceiling for one key; it can only lower the
+gateway-wide `limits.maxTokensCap`, never raise it.
 `"expiresAt"` (ISO 8601) makes a key stop working at that instant;
 `scripts/new-key.mjs` sets it 90 days ahead unless `--expires-days 0`. An
 expiry that does not parse counts as expired.
+
+Numeric settings (`timeoutMs`, `breaker.threshold`, `breaker.cooldownMs`,
+`limits.maxBodyBytes`, `limits.maxTokensCap`) must be positive integers. A
+configuration that does not load makes `/healthz` return 503.
