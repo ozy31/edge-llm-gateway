@@ -14,6 +14,13 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/healthz") {
+      // Health includes a valid configuration, so a bad GATEWAY_CONFIG fails
+      // the post-deploy check instead of every API request.
+      try {
+        loadConfig(env.GATEWAY_CONFIG);
+      } catch (e) {
+        return json({ status: "error", gateway: env.GATEWAY_NAME, error: `invalid GATEWAY_CONFIG: ${(e as Error).message}` }, 503);
+      }
       return json({ status: "ok", gateway: env.GATEWAY_NAME });
     }
     if (!API_ROUTES.has(url.pathname)) {

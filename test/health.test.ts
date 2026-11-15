@@ -1,4 +1,5 @@
-import { SELF } from "cloudflare:test";
+import { createExecutionContext, env, SELF, waitOnExecutionContext } from "cloudflare:test";
+import worker from "../src/index";
 import { describe, expect, it } from "vitest";
 import { createKey } from "./helpers";
 
@@ -25,5 +26,13 @@ describe("routing", () => {
     const ok = await SELF.fetch("https://gw.test/v1/models", { headers: { authorization: `Bearer ${key}` } });
     expect(ok.status).toBe(200);
     expect(ok.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("reports unhealthy when the configuration does not load", async () => {
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(new Request("https://gw.test/healthz"), { ...env, GATEWAY_CONFIG: '{"upstreams": {}}' }, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { error: string }).error).toMatch(/invalid GATEWAY_CONFIG: config needs "upstreams" and "models"/);
   });
 });
