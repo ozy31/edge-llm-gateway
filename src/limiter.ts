@@ -84,3 +84,9 @@ export function rateHeaders(r: TakeResult): Record<string, string> {
   if (!r.allowed) h["retry-after"] = String(r.retryAfterSec);
   return h;
 }
+
+// Seconds until the next calendar month starts (UTC), when budgets reset.
+export function secondsUntilNextMonth(now = new Date()): number {
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+  return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
+}

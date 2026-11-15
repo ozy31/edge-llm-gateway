@@ -1,6 +1,6 @@
 import { env, runInDurableObject, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { limiterFor, type TenantLimiter } from "../src/limiter";
+import { limiterFor, secondsUntilNextMonth, type TenantLimiter } from "../src/limiter";
 import { chat, createKey, hello } from "./helpers";
 
 async function usedTokens(tenant: string, expected: number): Promise<number> {
@@ -43,5 +43,13 @@ describe("monthly token budgets", () => {
     const res = await SELF.fetch(chat(key, hello()));
     expect(res.status).toBe(429);
     expect(await res.json()).toMatchObject({ error: { type: "insufficient_quota" } });
+    const retry = Number(res.headers.get("retry-after"));
+    expect(retry).toBeGreaterThan(0);
+    expect(retry).toBeLessThanOrEqual(31 * 86_400);
+  });
+
+  it("computes the time until budgets reset at the start of the next UTC month", () => {
+    expect(secondsUntilNextMonth(new Date("2026-11-30T23:59:00Z"))).toBe(60);
+    expect(secondsUntilNextMonth(new Date("2026-12-31T23:00:00Z"))).toBe(3600); // across the year
   });
 });

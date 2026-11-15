@@ -3,7 +3,7 @@ import { breakerFor } from "./breaker";
 import type { GatewayConfig } from "./config";
 import type { Env } from "./env";
 import { error } from "./http";
-import { limiterFor, rateHeaders } from "./limiter";
+import { limiterFor, rateHeaders, secondsUntilNextMonth } from "./limiter";
 import { routeChat, type Health } from "./router";
 import { meterStream, withUsageRequested } from "./stream";
 import { emit, outcomeFor, type ChatEvent } from "./telemetry";
@@ -56,9 +56,14 @@ export async function handleChat(
   const limiter = limiterFor(env.TENANT_LIMITER, tenant.tenant);
   const budget = await limiter.budget(tenant.monthlyTokenBudget);
   if (budget.remaining <= 0) {
-    return finish(error(429, "insufficient_quota", `monthly token budget of ${budget.budget} is used up for ${budget.month}`), {
-      outcome: "budget_exhausted",
-    });
+    return finish(
+      error(429, "insufficient_quota", `monthly token budget of ${budget.budget} is used up for ${budget.month}`, {
+        "retry-after": String(secondsUntilNextMonth()),
+      }),
+      {
+        outcome: "budget_exhausted",
+      },
+    );
   }
   const rate = await limiter.take(tenant.requestsPerMinute);
   if (!rate.allowed) {
