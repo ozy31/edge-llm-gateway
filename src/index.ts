@@ -28,6 +28,9 @@ export default {
       });
     }
     const { tenant } = auth;
+    if (url.pathname !== "/v1/chat/completions" && request.method !== "GET" && request.method !== "HEAD") {
+      return error(405, "invalid_request_error", `use GET for ${url.pathname}`, { allow: "GET, HEAD" });
+    }
 
     if (url.pathname === "/v1/models") {
       const data = Object.keys(config.models)

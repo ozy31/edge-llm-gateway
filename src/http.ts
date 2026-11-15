@@ -12,7 +12,8 @@ export type ErrorType =
 export function json(body: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", ...headers },
+    // Gateway answers are per key (usage, model lists, errors): never cache them.
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers },
   });
 }
 
