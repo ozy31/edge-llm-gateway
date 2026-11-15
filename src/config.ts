@@ -43,6 +43,12 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
+function positiveInt(where: string, v: unknown, fallback: number): number {
+  if (v === undefined) return fallback;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1) throw new ConfigError(`${where} must be a positive integer`);
+  return v;
+}
+
 function parseAuth(name: string, v: unknown): UpstreamAuth {
   if (v === undefined) return { type: "none" };
   if (!isObject(v)) throw new ConfigError(`upstream ${name}: auth must be an object`);
@@ -77,11 +83,11 @@ export function parseConfig(raw: unknown): GatewayConfig {
     upstreams[name] = {
       baseUrl: u.baseUrl.replace(/\/+$/, ""),
       auth: parseAuth(name, u.auth),
-      timeoutMs: typeof u.timeoutMs === "number" ? u.timeoutMs : 30_000,
+      timeoutMs: positiveInt(`upstream ${name}: timeoutMs`, u.timeoutMs, 30_000),
       redact: u.redact === true,
       breaker: {
-        threshold: isObject(u.breaker) && typeof u.breaker.threshold === "number" ? u.breaker.threshold : 5,
-        cooldownMs: isObject(u.breaker) && typeof u.breaker.cooldownMs === "number" ? u.breaker.cooldownMs : 30_000,
+        threshold: positiveInt(`upstream ${name}: breaker.threshold`, isObject(u.breaker) ? u.breaker.threshold : undefined, 5),
+        cooldownMs: positiveInt(`upstream ${name}: breaker.cooldownMs`, isObject(u.breaker) ? u.breaker.cooldownMs : undefined, 30_000),
       },
     };
   }
@@ -102,7 +108,11 @@ export function parseConfig(raw: unknown): GatewayConfig {
     };
   }
 
-  const limits = { ...DEFAULT_LIMITS, ...(isObject(value.limits) ? value.limits : {}) } as Limits;
+  const l = isObject(value.limits) ? value.limits : {};
+  const limits: Limits = {
+    maxBodyBytes: positiveInt("limits.maxBodyBytes", l.maxBodyBytes, DEFAULT_LIMITS.maxBodyBytes),
+    maxTokensCap: positiveInt("limits.maxTokensCap", l.maxTokensCap, DEFAULT_LIMITS.maxTokensCap),
+  };
   return { upstreams, models, limits };
 }
 

@@ -15,6 +15,11 @@ describe("config", () => {
     [{ upstreams: { u: { baseUrl: "http://plain.example.com" } }, models: {} }, /must be https/],
     [{ upstreams: { u: { baseUrl: "https://a.example.com", auth: { type: "bearer" } } }, models: {} }, /needs "secret"/],
     [{ upstreams: {}, models: { m: { targets: [] } } }, /at least one target/],
+    // A typo here used to pass through and break limits at request time.
+    [{ upstreams: { u: { baseUrl: "https://a.example.com", timeoutMs: "30s" } }, models: {} }, /timeoutMs must be a positive integer/],
+    [{ upstreams: { u: { baseUrl: "https://a.example.com", breaker: { threshold: 0 } } }, models: {} }, /breaker.threshold must be a positive integer/],
+    [{ upstreams: {}, models: {}, limits: { maxTokensCap: -1 } }, /limits.maxTokensCap must be a positive integer/],
+    [{ upstreams: {}, models: {}, limits: { maxBodyBytes: "1MB" } }, /limits.maxBodyBytes must be a positive integer/],
   ])("rejects bad config %#", (raw, msg) => {
     expect(() => parseConfig(raw)).toThrow(ConfigError);
     expect(() => parseConfig(raw)).toThrow(msg);
