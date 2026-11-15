@@ -1,0 +1,22 @@
+# Weekly dependency updates. Workers tooling (wrangler, the vitest plugin,
+# workers-types) moves together, so it is grouped into one PR.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cloudflare:
+        patterns: ["wrangler", "@cloudflare/*"]
+      test:
+        patterns: ["vitest", "@vitest/*"]
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: terraform
+    directory: /terraform
+    schedule:
+      interval: weekly
