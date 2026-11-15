@@ -8,6 +8,7 @@ export interface Tenant {
   requestsPerMinute: number;
   monthlyTokenBudget: number; // prompt + completion tokens per calendar month (UTC)
   disabled?: boolean;
+  expiresAt?: string; // ISO 8601; the key stops working at this instant
 }
 
 export const KEY_PREFIX = "sk-gw-";
@@ -35,9 +36,18 @@ export async function authenticate(request: Request, keys: KVNamespace): Promise
   const tenant = await keys.get<Tenant>(`key:${keyHash}`, { type: "json", cacheTtl: 60 });
   if (!tenant) return { ok: false, status: 401, message: "invalid API key" };
   if (tenant.disabled) return { ok: false, status: 403, message: "API key is disabled" };
+  if (isExpired(tenant)) return { ok: false, status: 401, message: "API key has expired" };
   return { ok: true, tenant, keyHash };
 }
 
 export function mayUseModel(tenant: Tenant, alias: string): boolean {
   return tenant.models === "*" || tenant.models.includes(alias);
+}
+
+// A key with an unparseable expiry is treated as expired: failing closed is
+// the safe reading of a typo in the KV record.
+export function isExpired(tenant: Tenant, now = Date.now()): boolean {
+  if (tenant.expiresAt === undefined) return false;
+  const at = Date.parse(tenant.expiresAt);
+  return Number.isNaN(at) || at <= now;
 }

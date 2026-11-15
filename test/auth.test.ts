@@ -1,6 +1,6 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { sha256Hex } from "../src/auth";
+import { isExpired, sha256Hex } from "../src/auth";
 import { chat, createKey, hello } from "./helpers";
 
 const models = (key: string) =>
@@ -43,5 +43,22 @@ describe("authentication", () => {
 
   it("health checks need no key", async () => {
     expect((await SELF.fetch("https://gw.test/healthz")).status).toBe(200);
+  });
+});
+
+describe("key expiry", () => {
+  it("accepts a key before its expiry and rejects it after", async () => {
+    const future = await createKey({ expiresAt: new Date(Date.now() + 3_600_000).toISOString() });
+    expect((await SELF.fetch(chat(future, hello()))).status).toBe(200);
+
+    const past = await createKey({ expiresAt: new Date(Date.now() - 1000).toISOString() });
+    const res = await SELF.fetch(chat(past, hello()));
+    expect(res.status).toBe(401);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe("API key has expired");
+  });
+
+  it("fails closed on an expiry it cannot parse", () => {
+    expect(isExpired({ tenant: "t", keyName: "k", models: "*", requestsPerMinute: 1, monthlyTokenBudget: 1, expiresAt: "next tuesday" })).toBe(true);
+    expect(isExpired({ tenant: "t", keyName: "k", models: "*", requestsPerMinute: 1, monthlyTokenBudget: 1 })).toBe(false);
   });
 });
