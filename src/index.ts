@@ -3,11 +3,12 @@ import { handleChat } from "./chat";
 import { loadConfig } from "./config";
 import type { Env } from "./env";
 import { error, json } from "./http";
+import { limiterFor } from "./limiter";
 
 export { UpstreamBreaker } from "./breaker";
 export { TenantLimiter } from "./limiter";
 
-const API_ROUTES = new Set(["/v1/models", "/v1/chat/completions"]);
+const API_ROUTES = new Set(["/v1/models", "/v1/usage", "/v1/chat/completions"]);
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -34,6 +35,18 @@ export default {
         .sort()
         .map((id) => ({ id, object: "model", owned_by: env.GATEWAY_NAME }));
       return json({ object: "list", data });
+    }
+    if (url.pathname === "/v1/usage") {
+      // A team can see where its own key stands without asking the platform team.
+      const b = await limiterFor(env.TENANT_LIMITER, tenant.tenant).budget(tenant.monthlyTokenBudget);
+      return json({
+        tenant: tenant.tenant,
+        key: tenant.keyName,
+        month: b.month,
+        tokens: { budget: b.budget, used: b.used, remaining: b.remaining },
+        requests_per_minute: tenant.requestsPerMinute,
+        expires_at: tenant.expiresAt ?? null,
+      });
     }
     return handleChat(request, env, ctx, config, tenant);
   },
