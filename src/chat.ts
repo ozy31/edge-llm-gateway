@@ -43,7 +43,8 @@ export async function handleChat(
   if (request.method !== "POST") return error(405, "invalid_request_error", "use POST", { allow: "POST" });
   const body = await readJson(request, config.limits.maxBodyBytes);
   if (!body.ok) return finish(error(body.status, "invalid_request_error", body.message));
-  const chat = validateChat(body.value, config.limits.maxTokensCap);
+  const cap = Math.min(config.limits.maxTokensCap, tenant.maxTokens ?? Infinity);
+  const chat = validateChat(body.value, cap);
   if (!chat.ok) return finish(error(400, "invalid_request_error", chat.message));
   event.model = chat.value.model;
   if (!config.models[chat.value.model]) {

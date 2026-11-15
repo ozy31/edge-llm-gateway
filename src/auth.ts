@@ -9,6 +9,7 @@ export interface Tenant {
   monthlyTokenBudget: number; // prompt + completion tokens per calendar month (UTC)
   disabled?: boolean;
   expiresAt?: string; // ISO 8601; the key stops working at this instant
+  maxTokens?: number; // per-request ceiling for this key, below the gateway-wide cap
 }
 
 export const KEY_PREFIX = "sk-gw-";

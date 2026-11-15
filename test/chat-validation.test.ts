@@ -1,6 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";
-import { chat, createKey } from "./helpers";
+import { chat, createKey, hello } from "./helpers";
 
 let key: string;
 beforeAll(async () => {
@@ -44,5 +44,20 @@ describe("/v1/chat/completions validation", () => {
   it("only accepts POST", async () => {
     const res = await SELF.fetch("https://gw.test/v1/chat/completions", { headers: { authorization: `Bearer ${key}` } });
     expect(res.status).toBe(405);
+  });
+});
+
+describe("per-key max_tokens", () => {
+  it("applies a key's own ceiling below the gateway-wide cap", async () => {
+    const key = await createKey({ maxTokens: 100 });
+    expect((await SELF.fetch(chat(key, hello("chat-small", { max_tokens: 100 })))).status).toBe(200);
+    const res = await SELF.fetch(chat(key, hello("chat-small", { max_tokens: 101 })));
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toBe("max_tokens must be <= 100");
+  });
+
+  it("never lifts the gateway-wide cap", async () => {
+    const key = await createKey({ maxTokens: 1_000_000 });
+    expect((await SELF.fetch(chat(key, hello("chat-small", { max_tokens: 1_000_000 })))).status).toBe(400);
   });
 });
